@@ -146,10 +146,10 @@ public abstract class Getdown
     /**
      * Configures our proxy settings (called by {@link ProxyPanel}) and fires up the launcher.
      */
-    public void configProxy (String host, String port, String username, String password)
+    public void configProxy (String host, String port, String username, String password, String domain)
     {
         log.info("User configured proxy", "host", host, "port", port);
-        ProxyUtil.configProxy(_app, host, port, username, password);
+        ProxyUtil.configProxy(_app, host, port, username, password, domain);
 
         // clear out our UI
         disposeContainer();

@@ -60,6 +60,13 @@ public final class ProxyPanel extends JPanel implements ActionListener
         add(new Spacer(5, 5));
 
         row = new JPanel(new GridLayout());
+        row.add(new SaneLabelField(get("m.proxy_domain")), BorderLayout.WEST);
+        row.add(_domain = new SaneTextField());
+        add(row);
+
+        add(new Spacer(5, 5));
+
+        row = new JPanel(new GridLayout());
         row.add(new SaneLabelField(get("m.proxy_auth_required")), BorderLayout.WEST);
         _useAuth = new JCheckBox();
         row.add(_useAuth);
@@ -132,7 +139,7 @@ public final class ProxyPanel extends JPanel implements ActionListener
         // or the JLabel will claim a bogus height thinking it can lay its
         // text out all on one line which will booch the whole UI's
         // preferred size
-        return new Dimension(500, 320);
+        return new Dimension(500, 340);
     }
 
     // documentation inherited from interface
@@ -148,7 +155,7 @@ public final class ProxyPanel extends JPanel implements ActionListener
                 // in a char[] that gets zeroed out after use is not viable for this use case
                 pass = new String(_password.getPassword());
             }
-            _getdown.configProxy(_host.getText(), _port.getText(), user, pass);
+            _getdown.configProxy(_host.getText(), _port.getText(), user, pass, (_domain.getText().isEmpty() ? null : _domain.getText()));
         } else {
             // they canceled, we're outta here
             System.exit(0);
@@ -199,6 +206,7 @@ public final class ProxyPanel extends JPanel implements ActionListener
 
     protected JTextField _host;
     protected JTextField _port;
+    protected JTextField _domain;
     protected JCheckBox _useAuth;
     protected JTextField _username;
     protected JPasswordField _password;

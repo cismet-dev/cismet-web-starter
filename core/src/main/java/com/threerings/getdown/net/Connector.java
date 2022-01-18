@@ -22,6 +22,7 @@ import java.util.zip.GZIPInputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.threerings.getdown.data.SysProps;
+import com.threerings.getdown.spi.ProxyProvider;
 import com.threerings.getdown.util.Base64;
 import com.threerings.getdown.util.StreamUtil;
 
@@ -39,7 +40,7 @@ public class Connector {
     public enum State { ACTIVE, NEED_PROXY, NEED_PROXY_AUTH }
 
     /** The proxy used by this connector. */
-    public final Proxy proxy;
+    public Proxy proxy;
 
     /** The current state of this connector. */
     public State state = State.ACTIVE;
@@ -53,6 +54,10 @@ public class Connector {
             throw new IllegalArgumentException("The passed Proxy cannot be " + Proxy.NO_PROXY + ". Use the empty constructor instead");
         }
         this.proxy = proxy;
+    }
+    
+    public void setProxy(ProxyProvider.Configuration proxyConfig) {
+        this.proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyConfig.host, proxyConfig.port));
     }
 
     /**

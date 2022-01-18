@@ -41,13 +41,22 @@ import com.threerings.getdown.util.LaunchUtil;
 import com.threerings.getdown.util.StringUtil;
 
 import static com.threerings.getdown.Log.log;
+import com.threerings.getdown.spi.ProxyProvider;
 
 public final class ProxyUtil {
 
     public static boolean autoDetectProxy (Application app)
     {
         String host = null, port = null;
-
+        ServiceLoader<ProxyProvider> loader = ServiceLoader.load(ProxyProvider.class);
+        Iterator<ProxyProvider> configIter = loader.iterator();
+        ProxyProvider.Configuration config = configIter.hasNext() ? configIter.next().loadProxy(app.getAppDir().getAbsolutePath()) : null;
+        
+        if (config != null) {
+            initProxy(app, config.host, String.valueOf(config.port), config.domain, config.username, config.password);
+            return true;
+        }
+        
         // check for a proxy configured via system properties
         if (System.getProperty("https.proxyHost") != null) {
             host = System.getProperty("https.proxyHost");
@@ -118,7 +127,7 @@ public final class ProxyUtil {
         }
 
         // yay, we found a proxy configuration, configure it in the app
-        initProxy(app, host, port, null, null);
+        initProxy(app, host, port, null, null, null);
         return true;
     }
 
@@ -156,21 +165,39 @@ public final class ProxyUtil {
 
     public static void configProxy (Application app, String host, String port,
                                     String username, String password) {
+        configProxy(app, host, port, username, password, null);
+    }
+
+    
+    public static void configProxy (Application app, String host, String port,
+                                    String username, String password, String domain) {
+
+        ServiceLoader<ProxyProvider> providerLoader = ServiceLoader.load(ProxyProvider.class);
+        Iterator<ProxyProvider> it = providerLoader.iterator();
+        String appDir = app.getAppDir().getAbsolutePath();
+        boolean providerFound = false;
+        
+        if (it.hasNext()) {
+            providerFound = true;
+            it.next().saveProxy(appDir, host, Integer.parseInt(port), domain, username, password);
+        }
+
         // save our proxy host and port in a local file
-        saveProxy(app, host, port);
+        if (!providerFound) {
+            saveProxy(app, host, port);
+        }
 
         // save our credentials via the SPI
-        if (!StringUtil.isBlank(username) && !StringUtil.isBlank(password)) {
+        if (!StringUtil.isBlank(username) && !StringUtil.isBlank(password) && !providerFound) {
             ServiceLoader<ProxyAuth> loader = ServiceLoader.load(ProxyAuth.class);
             Iterator<ProxyAuth> iterator = loader.iterator();
-            String appDir = app.getAppDir().getAbsolutePath();
             while (iterator.hasNext()) {
                 iterator.next().saveCredentials(appDir, username, password);
             }
         }
 
         // also configure them in the app
-        initProxy(app, host, port, username, password);
+        initProxy(app, host, port, domain, username, password);
     }
 
     public static String[] loadProxy (Application app) {
@@ -200,7 +227,7 @@ public final class ProxyUtil {
         }
     }
 
-    public static void initProxy (Application app, String host, String port,
+    public static void initProxy (Application app, String host, String port, String domain,
                                   String username, String password)
     {
         // check whether we have saved proxy credentials
@@ -208,19 +235,44 @@ public final class ProxyUtil {
         ServiceLoader<ProxyAuth> loader = ServiceLoader.load(ProxyAuth.class);
         Iterator<ProxyAuth> iter = loader.iterator();
         ProxyAuth.Credentials creds = iter.hasNext() ? iter.next().loadCredentials(appDir) : null;
-        if (creds != null) {
+        
+        if (creds != null && username == null) {
             username = creds.username;
             password = creds.password;
         }
+        
         boolean haveCreds = !StringUtil.isBlank(username) && !StringUtil.isBlank(password);
 
+        ServiceLoader<ProxyProvider> loaderProvider = ServiceLoader.load(ProxyProvider.class);
+        Iterator<ProxyProvider> iteratorProvider = loaderProvider.iterator();
+        ProxyProvider.Configuration proxyConfig = null;
+        
+        if (iteratorProvider.hasNext()) {
+            ProxyProvider provider = iteratorProvider.next();
+            provider.saveProxy(appDir, host, Integer.parseInt(port), domain, username, password);
+            proxyConfig = provider.loadProxy(appDir);
+        }
+        
+        ServiceLoader<Connector> connection = ServiceLoader.load(Connector.class);
+        Iterator<Connector> connectionIt = connection.iterator();
+        
+        if (connectionIt.hasNext()) {
+            app.conn = connectionIt.next();
+        } else {
+            app.conn = new Connector();
+        }
+        
         if (StringUtil.isBlank(host)) {
             log.info("Using no proxy");
-            app.conn = new Connector();
         } else {
             int pp = StringUtil.isBlank(port) ? 80 : Integer.valueOf(port);
             log.info("Using proxy", "host", host, "port", pp, "haveCreds", haveCreds);
-            app.conn = new Connector(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, pp)));
+            
+            if (proxyConfig != null) {
+                app.conn.setProxy(proxyConfig);
+            } else {
+                app.conn.setProxy(new ProxyProvider.Configuration(host, pp, domain, username, password));
+            }
         }
 
         if (haveCreds) {
