@@ -54,6 +54,22 @@ public final class ProxyUtil {
         
         if (config != null) {
             initProxy(app, config.host, String.valueOf(config.port), config.domain, config.username, config.password);
+            
+            try {
+                HttpURLConnection conn = app.conn.openHttp(app.getRemoteURL(Application.CONFIG_FILE), 0, 0);
+                conn.setRequestMethod("HEAD");
+
+                int statusCode = app.conn.checkConnectStatus(conn);
+                
+                if (statusCode != HttpURLConnection.HTTP_OK) {
+                    initProxy(app, null, "0", null, null, null);
+                    return false;
+                }
+            } catch (Exception e) {
+                initProxy(app, null, "0", null, null, null);
+                return false;
+            }
+            
             return true;
         }
         
